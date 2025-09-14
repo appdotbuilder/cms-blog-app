@@ -1,41 +1,92 @@
+import { db } from '../db';
+import { adSenseConfigTable } from '../db/schema';
 import { type UpdateAdSenseConfigInput, type AdSenseConfig } from '../schema';
 
 export async function getAdSenseConfig(): Promise<AdSenseConfig | null> {
-    // This is a placeholder declaration! Real code should be implemented here.
-    // The goal of this handler is to fetch the current AdSense configuration.
-    // Should be accessible to public for displaying ads, but sensitive info should be filtered.
-    // Only super_admin should see the full configuration including publisher_id.
-    return Promise.resolve(null);
+  try {
+    const results = await db.select()
+      .from(adSenseConfigTable)
+      .limit(1)
+      .execute();
+
+    if (results.length === 0) {
+      return null;
+    }
+
+    return results[0];
+  } catch (error) {
+    console.error('Failed to fetch AdSense config:', error);
+    throw error;
+  }
 }
 
 export async function updateAdSenseConfig(input: UpdateAdSenseConfigInput): Promise<AdSenseConfig> {
-    // This is a placeholder declaration! Real code should be implemented here.
-    // The goal of this handler is to update AdSense configuration settings.
-    // Only super_admin users should be able to modify AdSense settings.
-    // Should create initial config if none exists, or update existing one.
-    return Promise.resolve({
-        id: 1,
-        publisher_id: input.publisher_id,
-        ad_slot_header: input.ad_slot_header || null,
-        ad_slot_sidebar: input.ad_slot_sidebar || null,
-        ad_slot_footer: input.ad_slot_footer || null,
-        ad_slot_in_content: input.ad_slot_in_content || null,
-        is_enabled: input.is_enabled,
-        created_at: new Date(),
-        updated_at: new Date()
-    } as AdSenseConfig);
+  try {
+    // Check if config already exists
+    const existingConfig = await getAdSenseConfig();
+
+    if (existingConfig) {
+      // Update existing config
+      const results = await db.update(adSenseConfigTable)
+        .set({
+          publisher_id: input.publisher_id,
+          ad_slot_header: input.ad_slot_header ?? null,
+          ad_slot_sidebar: input.ad_slot_sidebar ?? null,
+          ad_slot_footer: input.ad_slot_footer ?? null,
+          ad_slot_in_content: input.ad_slot_in_content ?? null,
+          is_enabled: input.is_enabled,
+          updated_at: new Date()
+        })
+        .returning()
+        .execute();
+
+      return results[0];
+    } else {
+      // Create new config
+      const results = await db.insert(adSenseConfigTable)
+        .values({
+          publisher_id: input.publisher_id,
+          ad_slot_header: input.ad_slot_header ?? null,
+          ad_slot_sidebar: input.ad_slot_sidebar ?? null,
+          ad_slot_footer: input.ad_slot_footer ?? null,
+          ad_slot_in_content: input.ad_slot_in_content ?? null,
+          is_enabled: input.is_enabled
+        })
+        .returning()
+        .execute();
+
+      return results[0];
+    }
+  } catch (error) {
+    console.error('Failed to update AdSense config:', error);
+    throw error;
+  }
 }
 
 export async function getPublicAdSenseConfig(): Promise<{
-    ad_slot_header: string | null;
-    ad_slot_sidebar: string | null;
-    ad_slot_footer: string | null;
-    ad_slot_in_content: string | null;
-    is_enabled: boolean;
+  ad_slot_header: string | null;
+  ad_slot_sidebar: string | null;
+  ad_slot_footer: string | null;
+  ad_slot_in_content: string | null;
+  is_enabled: boolean;
 } | null> {
-    // This is a placeholder declaration! Real code should be implemented here.
-    // The goal of this handler is to fetch public AdSense configuration for frontend use.
-    // Should only return ad slot IDs and enabled status, not sensitive publisher_id.
-    // This should be publicly accessible for the frontend to display ads.
-    return Promise.resolve(null);
+  try {
+    const config = await getAdSenseConfig();
+
+    if (!config) {
+      return null;
+    }
+
+    // Return only public fields, excluding sensitive publisher_id
+    return {
+      ad_slot_header: config.ad_slot_header,
+      ad_slot_sidebar: config.ad_slot_sidebar,
+      ad_slot_footer: config.ad_slot_footer,
+      ad_slot_in_content: config.ad_slot_in_content,
+      is_enabled: config.is_enabled
+    };
+  } catch (error) {
+    console.error('Failed to fetch public AdSense config:', error);
+    throw error;
+  }
 }

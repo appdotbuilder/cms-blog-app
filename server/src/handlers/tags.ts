@@ -1,58 +1,118 @@
+import { db } from '../db';
+import { tagsTable, blogPostTagsTable } from '../db/schema';
 import { type CreateTagInput, type UpdateTagInput, type Tag } from '../schema';
+import { eq } from 'drizzle-orm';
 
 export async function createTag(input: CreateTagInput): Promise<Tag> {
-    // This is a placeholder declaration! Real code should be implemented here.
-    // The goal of this handler is to create a new blog post tag.
-    // Only super_admin users should be able to create tags.
-    // Should validate unique slug constraint.
-    return Promise.resolve({
-        id: 1,
+  try {
+    const result = await db.insert(tagsTable)
+      .values({
         name: input.name,
-        slug: input.slug,
-        created_at: new Date(),
-        updated_at: new Date()
-    } as Tag);
+        slug: input.slug
+      })
+      .returning()
+      .execute();
+
+    return result[0];
+  } catch (error) {
+    console.error('Tag creation failed:', error);
+    throw error;
+  }
 }
 
 export async function updateTag(input: UpdateTagInput): Promise<Tag> {
-    // This is a placeholder declaration! Real code should be implemented here.
-    // The goal of this handler is to update an existing tag.
-    // Only super_admin users should be able to update tags.
-    // Should validate unique slug constraint if slug is being updated.
-    return Promise.resolve({
-        id: input.id,
-        name: input.name || 'Current Tag',
-        slug: input.slug || 'current-tag',
-        created_at: new Date(),
-        updated_at: new Date()
-    } as Tag);
+  try {
+    const updateData: Partial<typeof tagsTable.$inferInsert> = {
+      updated_at: new Date()
+    };
+
+    if (input.name !== undefined) {
+      updateData.name = input.name;
+    }
+
+    if (input.slug !== undefined) {
+      updateData.slug = input.slug;
+    }
+
+    const result = await db.update(tagsTable)
+      .set(updateData)
+      .where(eq(tagsTable.id, input.id))
+      .returning()
+      .execute();
+
+    if (result.length === 0) {
+      throw new Error(`Tag with id ${input.id} not found`);
+    }
+
+    return result[0];
+  } catch (error) {
+    console.error('Tag update failed:', error);
+    throw error;
+  }
 }
 
 export async function deleteTag(tagId: number): Promise<{ success: boolean }> {
-    // This is a placeholder declaration! Real code should be implemented here.
-    // The goal of this handler is to delete a tag.
-    // Only super_admin users should be able to delete tags.
-    // Should handle removal of tag associations from blog posts.
-    return Promise.resolve({ success: true });
+  try {
+    // First delete all blog post associations
+    await db.delete(blogPostTagsTable)
+      .where(eq(blogPostTagsTable.tag_id, tagId))
+      .execute();
+
+    // Then delete the tag itself
+    const result = await db.delete(tagsTable)
+      .where(eq(tagsTable.id, tagId))
+      .returning()
+      .execute();
+
+    if (result.length === 0) {
+      throw new Error(`Tag with id ${tagId} not found`);
+    }
+
+    return { success: true };
+  } catch (error) {
+    console.error('Tag deletion failed:', error);
+    throw error;
+  }
 }
 
 export async function getTags(): Promise<Tag[]> {
-    // This is a placeholder declaration! Real code should be implemented here.
-    // The goal of this handler is to fetch all available tags.
-    // This should be accessible to all authenticated users and potentially public.
-    return Promise.resolve([]);
+  try {
+    const result = await db.select()
+      .from(tagsTable)
+      .orderBy(tagsTable.name)
+      .execute();
+
+    return result;
+  } catch (error) {
+    console.error('Get tags failed:', error);
+    throw error;
+  }
 }
 
 export async function getTagById(tagId: number): Promise<Tag | null> {
-    // This is a placeholder declaration! Real code should be implemented here.
-    // The goal of this handler is to fetch a specific tag by ID.
-    // This should be accessible to all users.
-    return Promise.resolve(null);
+  try {
+    const result = await db.select()
+      .from(tagsTable)
+      .where(eq(tagsTable.id, tagId))
+      .execute();
+
+    return result.length > 0 ? result[0] : null;
+  } catch (error) {
+    console.error('Get tag by ID failed:', error);
+    throw error;
+  }
 }
 
 export async function getTagBySlug(slug: string): Promise<Tag | null> {
-    // This is a placeholder declaration! Real code should be implemented here.
-    // The goal of this handler is to fetch a specific tag by slug.
-    // This should be accessible to all users for public blog views.
-    return Promise.resolve(null);
+  try {
+    const result = await db.select()
+      .from(tagsTable)
+      .where(eq(tagsTable.slug, slug))
+      .execute();
+
+    return result.length > 0 ? result[0] : null;
+  } catch (error) {
+    console.error('Get tag by slug failed:', error);
+    throw error;
+  }
 }

@@ -1,60 +1,124 @@
+import { db } from '../db';
+import { categoriesTable, blogPostCategoriesTable } from '../db/schema';
 import { type CreateCategoryInput, type UpdateCategoryInput, type Category } from '../schema';
+import { eq, SQL } from 'drizzle-orm';
 
 export async function createCategory(input: CreateCategoryInput): Promise<Category> {
-    // This is a placeholder declaration! Real code should be implemented here.
-    // The goal of this handler is to create a new blog post category.
-    // Only super_admin users should be able to create categories.
-    // Should validate unique slug constraint.
-    return Promise.resolve({
-        id: 1,
+  try {
+    // Insert category record
+    const result = await db.insert(categoriesTable)
+      .values({
         name: input.name,
         slug: input.slug,
-        description: input.description || null,
-        created_at: new Date(),
-        updated_at: new Date()
-    } as Category);
+        description: input.description || null
+      })
+      .returning()
+      .execute();
+
+    return result[0];
+  } catch (error) {
+    console.error('Category creation failed:', error);
+    throw error;
+  }
 }
 
 export async function updateCategory(input: UpdateCategoryInput): Promise<Category> {
-    // This is a placeholder declaration! Real code should be implemented here.
-    // The goal of this handler is to update an existing category.
-    // Only super_admin users should be able to update categories.
-    // Should validate unique slug constraint if slug is being updated.
-    return Promise.resolve({
-        id: input.id,
-        name: input.name || 'Current Category',
-        slug: input.slug || 'current-category',
-        description: input.description !== undefined ? input.description : null,
-        created_at: new Date(),
-        updated_at: new Date()
-    } as Category);
+  try {
+    // Build update object dynamically
+    const updateData: Partial<typeof categoriesTable.$inferInsert> = {
+      updated_at: new Date()
+    };
+
+    if (input.name !== undefined) {
+      updateData.name = input.name;
+    }
+    if (input.slug !== undefined) {
+      updateData.slug = input.slug;
+    }
+    if (input.description !== undefined) {
+      updateData.description = input.description;
+    }
+
+    // Update category record
+    const result = await db.update(categoriesTable)
+      .set(updateData)
+      .where(eq(categoriesTable.id, input.id))
+      .returning()
+      .execute();
+
+    if (result.length === 0) {
+      throw new Error(`Category with id ${input.id} not found`);
+    }
+
+    return result[0];
+  } catch (error) {
+    console.error('Category update failed:', error);
+    throw error;
+  }
 }
 
 export async function deleteCategory(categoryId: number): Promise<{ success: boolean }> {
-    // This is a placeholder declaration! Real code should be implemented here.
-    // The goal of this handler is to delete a category.
-    // Only super_admin users should be able to delete categories.
-    // Should handle removal of category associations from blog posts.
-    return Promise.resolve({ success: true });
+  try {
+    // First, remove all category associations from blog posts
+    await db.delete(blogPostCategoriesTable)
+      .where(eq(blogPostCategoriesTable.category_id, categoryId))
+      .execute();
+
+    // Then delete the category
+    const result = await db.delete(categoriesTable)
+      .where(eq(categoriesTable.id, categoryId))
+      .returning({ id: categoriesTable.id })
+      .execute();
+
+    if (result.length === 0) {
+      throw new Error(`Category with id ${categoryId} not found`);
+    }
+
+    return { success: true };
+  } catch (error) {
+    console.error('Category deletion failed:', error);
+    throw error;
+  }
 }
 
 export async function getCategories(): Promise<Category[]> {
-    // This is a placeholder declaration! Real code should be implemented here.
-    // The goal of this handler is to fetch all available categories.
-    // This should be accessible to all authenticated users and potentially public.
-    return Promise.resolve([]);
+  try {
+    const result = await db.select()
+      .from(categoriesTable)
+      .orderBy(categoriesTable.name)
+      .execute();
+
+    return result;
+  } catch (error) {
+    console.error('Categories retrieval failed:', error);
+    throw error;
+  }
 }
 
 export async function getCategoryById(categoryId: number): Promise<Category | null> {
-    // This is a placeholder declaration! Real code should be implemented here.
-    // The goal of this handler is to fetch a specific category by ID.
-    // This should be accessible to all users.
-    return Promise.resolve(null);
+  try {
+    const result = await db.select()
+      .from(categoriesTable)
+      .where(eq(categoriesTable.id, categoryId))
+      .execute();
+
+    return result[0] || null;
+  } catch (error) {
+    console.error('Category retrieval by id failed:', error);
+    throw error;
+  }
 }
 
 export async function getCategoryBySlug(slug: string): Promise<Category | null> {
-    // This is a placeholder declaration! Real code should be implemented here.
-    // The goal of this handler is to fetch a specific category by slug.
-    // This should be accessible to all users for public blog views.
-    return Promise.resolve(null);
+  try {
+    const result = await db.select()
+      .from(categoriesTable)
+      .where(eq(categoriesTable.slug, slug))
+      .execute();
+
+    return result[0] || null;
+  } catch (error) {
+    console.error('Category retrieval by slug failed:', error);
+    throw error;
+  }
 }
